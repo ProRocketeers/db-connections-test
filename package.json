@@ -1,0 +1,14 @@
+{
+  "name": "simple-postgre-api",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.ts"
+  },
+  "dependencies": {
+    "elysia": "^1.1.0",
+    "@elysiajs/swagger": "^1.1.0",
+    "pg": "^8.11.3",
+    "ioredis": "^5.3.2"
+  }
+}
