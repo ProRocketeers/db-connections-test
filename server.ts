@@ -3,6 +3,15 @@ import { swagger } from '@elysiajs/swagger'
 import pg from 'pg'
 import Redis from 'ioredis'
 
+console.log('Environment variables:')
+console.log('DB_HOST:', process.env.DB_HOST)
+console.log('DB_PORT:', process.env.DB_PORT)
+console.log('DB_NAME:', process.env.DB_NAME)
+console.log('DB_USER:', process.env.DB_USER)
+console.log('DB_PASSWORD:', process.env.DB_PASSWORD ? '***' : undefined)
+console.log('REDIS_HOST:', process.env.REDIS_HOST)
+console.log('REDIS_PORT:', process.env.REDIS_PORT)
+
 const { Pool } = pg
 
 const pool = new Pool({
@@ -21,6 +30,7 @@ await pool.query(`
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )
 `)
+
 
 
 const redis = new Redis({
@@ -68,7 +78,6 @@ app.delete('/todos/:id', async ({ params }) => {
 })
 
 app.get('/redis/test', async () => {
-  console.log(redis.status)
   if (redis.status !== 'ready') {
     return { status: 'disconnected' }
   }
