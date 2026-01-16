@@ -15,26 +15,17 @@ if (process.env.DB_URL) {
   const end = url.slice(-20)
   const masked = `${start}...${end}`
   console.log('DB_URL:', masked)
+}else{
+  console.log('NO DB_URL FOUND')
 }
 console.log('REDIS_HOST:', process.env.REDIS_HOST)
 console.log('REDIS_PORT:', process.env.REDIS_PORT)
 
 const { Pool } = pg
 
-console.log('[DEBUG] Creating PostgreSQL pool with config:', {
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD ? '***SET***' : '***UNSET***'
-})
 
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD
+  connectionString: process.env.DB_URL
 })
 
 pool.on('error', (err) => {
