@@ -9,10 +9,25 @@ console.log('DB_PORT:', process.env.DB_PORT)
 console.log('DB_NAME:', process.env.DB_NAME)
 console.log('DB_USER:', process.env.DB_USER)
 console.log('DB_PASSWORD:', process.env.DB_PASSWORD ? '***' : undefined)
+if (process.env.DB_URL) {
+  const url = process.env.DB_URL
+  const start = url.slice(0, 12)
+  const end = url.slice(-20)
+  const masked = `${start}...${end}`
+  console.log('DB_URL:', masked)
+}
 console.log('REDIS_HOST:', process.env.REDIS_HOST)
 console.log('REDIS_PORT:', process.env.REDIS_PORT)
 
 const { Pool } = pg
+
+console.log('[DEBUG] Creating PostgreSQL pool with config:', {
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD ? '***SET***' : '***UNSET***'
+})
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -22,35 +37,82 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD
 })
 
-await pool.query(`
-  CREATE TABLE IF NOT EXISTS todos (
-    id SERIAL PRIMARY KEY,
-    title TEXT NOT NULL,
-    completed BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )
-`)
+pool.on('error', (err) => {
+  console.error('[DEBUG] PostgreSQL pool error:', err.message, 'code:', err.code)
+})
 
+pool.on('connect', (client) => {
+  console.log('[DEBUG] PostgreSQL client connected')
+})
 
+console.log('[DEBUG] PostgreSQL pool created successfully')
+console.log('[DEBUG] Attempting to create todos table...')
+
+try {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS todos (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      completed BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+  console.log('[DEBUG] Todos table created or already exists')
+} catch (err) {
+  console.error('[DEBUG] Failed to create todos table:', err.message, 'code:', err.code)
+  console.error('[DEBUG] Error stack:', err.stack)
+  throw err
+}
+
+console.log('[DEBUG] PostgreSQL connection established and initialized')
+console.log('[DEBUG] Redis host:', process.env.REDIS_HOST, 'port:', process.env.REDIS_PORT)
 
 const redis = new Redis({
   host: process.env.REDIS_HOST,
-  port: parseInt(process.env.REDIS_PORT || '6379')
+  port: parseInt(process.env.REDIS_PORT || '6379'),
+  lazyConnect: true
 })
+
+redis.on('error', (err) => {
+  console.warn('[DEBUG] Redis error:', err.message)
+})
+
+redis.on('connect', () => {
+  console.log('[DEBUG] Redis connected')
+})
+
+redis.on('ready', () => {
+  console.log('[DEBUG] Redis ready')
+})
+
+if (process.env.REDIS_HOST) {
+  console.log('[DEBUG] Attempting to connect to Redis...')
+  await redis.connect().catch(err => {
+    console.warn('[DEBUG] Redis connection failed (continuing anyway):', err.message)
+  })
+} else {
+  console.warn('[DEBUG] REDIS_HOST not set, Redis disabled')
+}
+
+console.log('[DEBUG] Initializing Elysia server...')
 
 const app = new Elysia()
   .use(swagger())
 
 app.get('/todos', async () => {
+  console.log('[DEBUG] GET /todos - Querying database...')
   const { rows } = await pool.query('SELECT * FROM todos ORDER BY created_at DESC')
+  console.log('[DEBUG] GET /todos - Query successful, returned', rows.length, 'rows')
   return rows
 })
 
 app.post('/todos', async ({ body }) => {
+  console.log('[DEBUG] POST /todos - Inserting todo:', body.title)
   const { rows } = await pool.query(
     'INSERT INTO todos (title, completed) VALUES ($1, $2) RETURNING *',
     [body.title, body.completed ?? false]
   )
+  console.log('[DEBUG] POST /todos - Insert successful, ID:', rows[0].id)
   return rows[0]
 }, {
   body: t.Object({
@@ -116,6 +178,27 @@ app.delete('/redis/:key', async ({ params }) => {
   }
   await redis.del(params.key)
   return { success: true }
+})
+
+app.get('/health', async () => {
+  console.log('[DEBUG] GET /health - Checking database connection...')
+  try {
+    const result = await pool.query('SELECT NOW()')
+    console.log('[DEBUG] GET /health - Database OK, time:', result.rows[0].now)
+    return {
+      status: 'ok',
+      database: 'connected',
+      postgres_time: result.rows[0].now,
+      redis: redis.status === 'ready' ? 'connected' : 'disconnected'
+    }
+  } catch (err) {
+    console.error('[DEBUG] GET /health - Database failed:', err.message)
+    return {
+      status: 'error',
+      database: 'disconnected',
+      error: err.message
+    }
+  }
 })
 
 app.listen(3000, () => {
