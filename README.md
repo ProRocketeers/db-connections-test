@@ -1,6 +1,6 @@
 # Simple TODO API with Bun, Elysia, PostgreSQL, and Redis
 
-## Setup
+## Setup.
 
 1. Install dependencies:
 ```bash
