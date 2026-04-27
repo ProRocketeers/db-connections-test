@@ -1,5 +1,9 @@
 # Simple TODO API with Bun, Elysia, PostgreSQL, and Redis
 
+## Greetings
+
+Welcome to the Simple TODO API! This project provides a RESTful API for managing todos with PostgreSQL for persistence and Redis for caching.
+
 ## Setup
 
 1. Install dependencies:
